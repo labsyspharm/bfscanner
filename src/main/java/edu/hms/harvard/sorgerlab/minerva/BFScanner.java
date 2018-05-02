@@ -17,7 +17,8 @@ import javax.json.JsonArray;
 import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
 
-
+import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagementClientBuilder;
+import com.amazonaws.services.simplesystemsmanagement.model.GetParameterRequest;
 import com.amazonaws.services.stepfunctions.model.StartExecutionRequest;
 import com.amazonaws.services.stepfunctions.AWSStepFunctionsClientBuilder;
 import com.amazonaws.services.stepfunctions.AWSStepFunctions;
@@ -34,8 +35,21 @@ public class BFScanner extends DirectoryWalker {
 
     static final Logger logger = LoggerFactory.getLogger(BFScanner.class);
 
-    static final AWSStepFunctions step =
+    private static final String stackPrefix = System.getenv("STACKPREFIX");
+
+    private static final String stage = System.getenv("STAGE");
+
+    private static final AWSStepFunctions step =
         AWSStepFunctionsClientBuilder.defaultClient();
+
+    // private static final String bfimportARN =
+    //     AWSSimpleSystemsManagementClientBuilder.defaultClient()
+    //         .getParameter(new GetParameterRequest()
+    //             .withName(String.format("/%s/%s/batch/bfimportWorkflowARN",
+    //                                     stackPrefix, stage))
+    //         )
+    //         .getParameter()
+    //         .getValue();
 
     final private Set<String> claimedFiles = new HashSet<String>();
 
@@ -50,7 +64,7 @@ public class BFScanner extends DirectoryWalker {
 
         // Ensure there is an argument representing the directory to scan
         if (args.length != 1) {
-            logger.error("No directory to scanned was specified");
+            logger.error("No directory to scan was specified");
             System.exit(1);
         }
 
@@ -106,7 +120,9 @@ public class BFScanner extends DirectoryWalker {
             return;
         }
 
+        // Get the information about this BFU
         String[] usedFiles = reader.getUsedFiles();
+        String readerClass = reader.getReader().getClass().getName();
 
         // Mark these files as claimed so that they will be skipped when the
         // walker reaches them
@@ -117,10 +133,7 @@ public class BFScanner extends DirectoryWalker {
 
         List<Path> usedPaths = new ArrayList<Path>();
         for (String usedFile : usedFiles) {
-            usedPaths.add(
-                Paths.get("/Users/dpwrussell/Downloads/TestData")
-                    .relativize(Paths.get(usedFile))
-            );
+            usedPaths.add(this.scanDir.relativize(Paths.get(usedFile)));
         }
 
         // Build JSON input
@@ -131,7 +144,14 @@ public class BFScanner extends DirectoryWalker {
         JsonArray paths = pathBuilder.build();
         JsonObject object = Json.createObjectBuilder()
             .add("paths", paths)
+            .add("reader", readerClass)
             .build();
+
+        System.out.print(object.toString());
+
+        // Call a lambda function to record this BFU in the database and
+        // initiate the metadata extraction and tiling of those files
+        // TODO Connect to real lambda function
 
         // step.startExecution(
         //     new StartExecutionRequest()
@@ -139,8 +159,6 @@ public class BFScanner extends DirectoryWalker {
         //         .withInput()
         //         .withName()
         // );
-
-        System.out.println(object);
 
     }
 }

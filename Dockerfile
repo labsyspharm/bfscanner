@@ -10,6 +10,6 @@ FROM alpine:3.5
 RUN apk -Uuv add openjdk8-jre \
 	&& mkdir /opt \
 	&& rm /var/cache/apk/*
-COPY --from=0 /tmp/target/bfscanner*.jar /opt/
+COPY --from=0 /tmp/target/bfscanner*.jar /opt/bfscanner.jar
 WORKDIR /tmp/aws
-ENTRYPOINT ["sh", "-c", "java -jar /opt/bfscanner*.jar"]
+ENTRYPOINT ["java", "-jar", "/opt/bfscanner.jar"]
