@@ -70,7 +70,7 @@ public class BFScanner extends DirectoryWalker {
 
         // Path to the directory to scan (it is assumed that the working
         // directory is the parent of the directory to scan)
-        Path scanDir = Paths.get(args[0]).normalize();
+        Path scanDir = Paths.get(args[0]).toAbsolutePath();
 
         // Ensure the directory to scan is a directory
         if (!Files.isDirectory(scanDir)) {
