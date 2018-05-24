@@ -20,8 +20,10 @@ import javax.json.JsonObject;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagementClientBuilder;
 import com.amazonaws.services.simplesystemsmanagement.model.GetParameterRequest;
 import com.amazonaws.services.stepfunctions.model.StartExecutionRequest;
+import com.amazonaws.services.stepfunctions.model.StartExecutionResult;
 import com.amazonaws.services.stepfunctions.AWSStepFunctionsClientBuilder;
 import com.amazonaws.services.stepfunctions.AWSStepFunctions;
+
 import loci.formats.ClassList;
 import loci.formats.FormatException;
 import loci.formats.IFormatReader;
@@ -75,20 +77,25 @@ public class BFScanner extends DirectoryWalker {
     /**
      * AWS ARN of Bio-Formats Extraction Step Function
      */
-    // private static final String bfimportARN =
-    //     AWSSimpleSystemsManagementClientBuilder.defaultClient()
-    //         .getParameter(new GetParameterRequest()
-    //             .withName(String.format("/%s/%s/batch/bfimportWorkflowARN",
-    //                                     stackPrefix, stage))
-    //         )
-    //         .getParameter()
-    //         .getValue();
+    private static final String bfExtractARN =
+        AWSSimpleSystemsManagementClientBuilder.defaultClient()
+            .getParameter(new GetParameterRequest()
+                .withName(String.format("/%s/%s/batch/BFExtractStepARN",
+                                        stackPrefix, stage))
+            )
+            .getParameter()
+            .getValue();
 
     /**
      * Lookup of files that have been claimed by previous filesets that should
      * not be reconsidered.
      */
     final private Set<String> claimedFiles = new HashSet<String>();
+
+    /**
+     * UUID of the import being scanned
+     */
+    final private String importUuid;
 
     /**
      * Absolute path to directory to scan
@@ -99,8 +106,9 @@ public class BFScanner extends DirectoryWalker {
      * Constructor
      * @param scanDir Relative path to directory to scan from working directory
      */
-    public BFScanner(Path scanDir) {
+    public BFScanner(String importUuid, Path scanDir) {
         super();
+        this.importUuid = importUuid;
         this.scanDir = scanDir;
     }
 
@@ -130,7 +138,7 @@ public class BFScanner extends DirectoryWalker {
             return;
         }
 
-        BFScanner bfscanner = new BFScanner(scanDir);
+        BFScanner bfscanner = new BFScanner(args[0], scanDir);
 
         try {
             bfscanner.walk(scanDir.toFile(), new ArrayList());
@@ -149,6 +157,7 @@ public class BFScanner extends DirectoryWalker {
      * @param  depth       Recursion depth
      * @param  results     Accumulated results (unused)
      */
+    @Override
     protected void handleFile(File file, int depth, Collection results)
             throws IOException {
 
@@ -172,6 +181,7 @@ public class BFScanner extends DirectoryWalker {
             // No reader can read this file
             logger.info(String.format("File not readable by bioformats: %s",
                                       file.getPath().toString()));
+            reader.close();
             return;
         }
 
@@ -179,11 +189,14 @@ public class BFScanner extends DirectoryWalker {
         String[] usedFiles = reader.getUsedFiles();
         String readerClass = reader.getReader().getClass().getName();
 
+        // Close the reader
+        reader.close();
+
         // Mark these files as claimed so that they will not be read again
         claimedFiles.addAll(Arrays.asList(usedFiles));
 
-        // Add to results
-        results.add(usedFiles);
+        // Add to results (unused at present)
+        // results.add(usedFiles);
 
         // Make a list of all the used paths relative to the scanned directory
         List<Path> usedPaths = new ArrayList<Path>();
@@ -198,22 +211,28 @@ public class BFScanner extends DirectoryWalker {
         }
         JsonArray paths = pathBuilder.build();
         JsonObject object = Json.createObjectBuilder()
-            .add("paths", paths)
-            .add("reader", readerClass)
+            .add("importUuid", this.importUuid)
+            .add("fileset", paths)
+            .add("bioformatsReader", readerClass)
             .build();
 
-        System.out.print(object.toString());
+        // System.out.print(object.toString());
 
-        // Call a lambda function to record this BFU in the database and
-        // initiate the metadata extraction and tiling of those files
-        // TODO Connect to real lambda function
+        logger.info(
+            "Executing Bio Formats Extract Step Function for a BFU in import "
+            + this.importUuid + " with an entrypoint of "
+            + usedPaths.get(0).normalize().toString());
 
-        // step.startExecution(
-        //     new StartExecutionRequest()
-        //         .withStateMachineArn()
-        //         .withInput()
-        //         .withName()
-        // );
+        // Start the extract step function which also registers the BFU in the
+        // database
+        StartExecutionResult response = step.startExecution(
+            new StartExecutionRequest()
+                .withStateMachineArn(bfExtractARN)
+                .withInput(object.toString())
+        );
+
+        logger.info("Bio Formats Extract Step Function ARN: "
+                    + response.getExecutionArn());
 
     }
 }
