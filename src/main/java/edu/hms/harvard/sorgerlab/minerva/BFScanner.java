@@ -138,6 +138,8 @@ public class BFScanner extends DirectoryWalker {
             return;
         }
 
+        logger.info("Beginning scan of " + args[0]);
+
         BFScanner bfscanner = new BFScanner(args[0], scanDir);
 
         try {
