@@ -26,6 +26,7 @@ import com.amazonaws.services.stepfunctions.AWSStepFunctions;
 
 import loci.formats.ClassList;
 import loci.formats.FormatException;
+import loci.formats.FormatTools;
 import loci.formats.IFormatReader;
 import loci.formats.ImageReader;
 import loci.formats.in.ZipReader;
@@ -75,12 +76,12 @@ public class BFScanner extends DirectoryWalker {
         AWSStepFunctionsClientBuilder.defaultClient();
 
     /**
-     * AWS ARN of Bio-Formats Extraction Step Function
+     * AWS ARN of Extraction Step Function
      */
-    private static final String bfExtractARN =
+    private static final String extractARN =
         AWSSimpleSystemsManagementClientBuilder.defaultClient()
             .getParameter(new GetParameterRequest()
-                .withName(String.format("/%s/%s/batch/BFExtractStepARN",
+                .withName(String.format("/%s/%s/batch/ExtractJobDef",
                                         stackPrefix, stage))
             )
             .getParameter()
@@ -187,7 +188,7 @@ public class BFScanner extends DirectoryWalker {
             return;
         }
 
-        // Get the information about this BFU
+        // Get the information about this Fileset
         String[] usedFiles = reader.getUsedFiles();
         String readerClass = reader.getReader().getClass().getName();
 
@@ -213,28 +214,29 @@ public class BFScanner extends DirectoryWalker {
         }
         JsonArray paths = pathBuilder.build();
         JsonObject object = Json.createObjectBuilder()
-            .add("importUuid", this.importUuid)
-            .add("fileset", paths)
-            .add("bioformatsReader", readerClass)
+            .add("import_uuid", this.importUuid)
+            .add("files", paths)
+            .add("reader", readerClass)
+            .add("reader_software", "Bio-Formats")
+            .add("reader_version", FormatTools.VERSION)
             .build();
 
         // System.out.print(object.toString());
 
         logger.info(
-            "Executing Bio Formats Extract Step Function for a BFU in import "
-            + this.importUuid + " with an entrypoint of "
+            "Executing Bio Formats Extract Step Function for a fileset in "
+            + "import " + this.importUuid + " with an entrypoint of "
             + usedPaths.get(0).normalize().toString());
 
         // Start the extract step function which also registers the BFU in the
         // database
         StartExecutionResult response = step.startExecution(
             new StartExecutionRequest()
-                .withStateMachineArn(bfExtractARN)
+                .withStateMachineArn(extractARN)
                 .withInput(object.toString())
         );
 
-        logger.info("Bio Formats Extract Step Function ARN: "
-                    + response.getExecutionArn());
+        logger.info("Extract Step Function ARN: " + response.getExecutionArn());
 
     }
 }
