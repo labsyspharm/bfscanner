@@ -81,7 +81,7 @@ public class BFScanner extends DirectoryWalker {
     private static final String extractARN =
         AWSSimpleSystemsManagementClientBuilder.defaultClient()
             .getParameter(new GetParameterRequest()
-                .withName(String.format("/%s/%s/batch/ExtractJobDef",
+                .withName(String.format("/%s/%s/batch/ExtractStepARN",
                                         stackPrefix, stage))
             )
             .getParameter()
