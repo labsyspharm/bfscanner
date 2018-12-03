@@ -104,13 +104,20 @@ public class BFScanner extends DirectoryWalker {
     final private Path scanDir;
 
     /**
+    * ARN of the extraction job definition
+    */
+    final private String extractJobDefinitionArn;
+
+    /**
      * Constructor
      * @param scanDir Relative path to directory to scan from working directory
      */
-    public BFScanner(String importUuid, Path scanDir) {
+    public BFScanner(String importUuid, Path scanDir,
+                     String extractJobDefinitionArn) {
         super();
         this.importUuid = importUuid;
         this.scanDir = scanDir;
+        this.extractJobDefinitionArn = extractJobDefinitionArn;
     }
 
     /**
@@ -121,8 +128,10 @@ public class BFScanner extends DirectoryWalker {
     public static void main( String[] args ) {
 
         // Ensure there is an argument representing the directory to scan
-        if (args.length != 1) {
-            logger.error("No directory to scan was specified");
+        if (args.length != 2) {
+            logger.error(
+                "Usage: BFScanner <scanDir> <extractJobDefinitionArn>"
+            );
             System.exit(1);
             return;
         }
@@ -130,6 +139,8 @@ public class BFScanner extends DirectoryWalker {
         // Path to the directory to scan (it is assumed that the working
         // directory is the parent of the directory to scan)
         Path scanDir = Paths.get(args[0]).toAbsolutePath();
+
+        String extractJobDefinitionArn = args[1];
 
         // Ensure the directory to scan is actually a directory
         if (!Files.isDirectory(scanDir)) {
@@ -141,7 +152,8 @@ public class BFScanner extends DirectoryWalker {
 
         logger.info("Beginning scan of " + args[0]);
 
-        BFScanner bfscanner = new BFScanner(args[0], scanDir);
+        BFScanner bfscanner = new BFScanner(args[0], scanDir,
+                                            extractJobDefinitionArn);
 
         try {
             bfscanner.walk(scanDir.toFile(), new ArrayList());
@@ -219,6 +231,7 @@ public class BFScanner extends DirectoryWalker {
             .add("reader", readerClass)
             .add("reader_software", "Bio-Formats")
             .add("reader_version", FormatTools.VERSION)
+            .add("extract_job_definition_arn", this.extractJobDefinitionArn)
             .build();
 
         // System.out.print(object.toString());
