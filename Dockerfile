@@ -3,6 +3,7 @@ FROM maven:3.5.3-jdk-10
 COPY src /tmp/src/
 COPY pom.xml /tmp/
 WORKDIR /tmp
+RUN mvn dependency:resolve
 RUN mvn package
 
 # Released Image
